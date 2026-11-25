@@ -1,3 +1,4 @@
+import { ensureTauriCompat, registerTopFetch, isTauriTavern, getLocalNovelKey, setLocalNovelKey } from './tauri-compat.mjs';
 import { createAutopicId } from './id.mjs';
 import { parseCharacterPromptFile, serializeCharacterPrompts } from './character-prompt-file.mjs';
 import {
@@ -219,6 +220,8 @@ function shouldUseAutopicNaiProxy() {
         return _fetch(input, init, ...rest);
     };
 })();
+// TauriTavern: keep this interceptor reachable even if the host re-patches fetch later.
+registerTopFetch(window.fetch);
 // ─────────────────────────────────────────────────────────────
 
 // ── NAI cfg_rescale 파라미터 ──────────────────────────────────
@@ -2593,6 +2596,7 @@ $(function () {
         await addToWandMenu();
         await createSettings(settingsHtml);
         initializeSlotSettings();
+        initializeTauriCompatSettings();
         scheduleBuiltInPromptPresetUpdateOffer();
 
         $('#extensions-settings-button').on('click', () => setTimeout(updateUI, 200));
@@ -3020,6 +3024,16 @@ function syncSlotCompatibility() {
     $('#autopic_translation_compatibility').val(enabled ? 'slots' : 'off');
     $('#autopic_translation_details').prop('hidden', !enabled);
     $('#autopic_translation_detected').text(extension_settings['llm-translator-custom'] ? 'llm-translator-custom 감지됨 · 태그 치환 모드에서 사용할 수 있습니다.' : '번역 확장을 사용하는 경우 선택하세요.');
+}
+
+function initializeTauriCompatSettings() {
+    if (!isTauriTavern()) return;
+    ensureTauriCompat();
+    if (event_types.APP_READY) eventSource.on(event_types.APP_READY, ensureTauriCompat);
+    $('#autopic_tauri_section').prop('hidden', false);
+    $('#autopic_tauri_nai_key').val(getLocalNovelKey()).on('change', function () {
+        setLocalNovelKey($(this).val());
+    });
 }
 
 function initializeSlotSettings() {
@@ -3886,6 +3900,7 @@ async function sdCallWithRescale(args, prompt, naiPayload = null) {
     pendingNaiPayload = naiPayload;
 
     try {
+        ensureTauriCompat();
         return await SlashCommandParser.commands['sd'].callback(args, prompt);
     } finally {
         pendingNaiPayload = previousPendingNaiPayload;

@@ -204,6 +204,11 @@
             </div>
         </details>
     </div>
+    <div id="autopic_tauri_section" class="ap-tauri-options" style="margin-bottom: 10px;" hidden>
+        <p class="ap-help">TauriTavern에서는 서버 플러그인 대신 AutoPic이 NovelAI를 직접 호출합니다. TauriTavern 설정의 "Allow Keys Exposure"가 켜져 있으면 키 칸은 비워둬도 됩니다.</p>
+        <label for="autopic_tauri_nai_key"><strong>TauriTavern용 NovelAI 키 (선택)</strong></label>
+        <input id="autopic_tauri_nai_key" class="text_pole" type="password" autocomplete="off" placeholder="pst-..."><small>이 기기에만 저장됩니다.</small>
+    </div>
     <div class="ap-legacy-options">
         <p class="ap-help">ST의 이미지 생성 설정을 사용합니다. 아래 추가 기능은 NovelAI 소스와 AutoPic 서버 플러그인이 필요합니다.</p>
         <label class="ap-switch-row"><span><strong>서버 플러그인 기능</strong><small>Rescale, 캐릭터 UC와 참조 이미지</small></span><input type="checkbox" id="nai_use_server_plugin" class="ap-toggle" role="switch"></label>
