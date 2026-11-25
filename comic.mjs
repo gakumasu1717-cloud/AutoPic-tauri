@@ -235,8 +235,9 @@ export function buildComicPrompt(options = getComicOptions()) {
         none: '- Do not write <say>; this comic has no dialogue.',
     }[options.dialogue];
     return `\n\n<autopic_comic_mode>
-Comic mode is ON. Every image is ONE comic page with 2-${options.maxPanels} panels, not a single illustration.
-Structure inside the usual <autopic> block:
+Comic mode is ON. This OVERRIDES the single-illustration format and examples given earlier for <autopic> blocks.
+Every image is ONE comic page with 2-${options.maxPanels} panels, not a single illustration. A block without <page> and <panel> sections is wrong while comic mode is on.
+Keep the story outside the block and append the block after the story, as usual. Use this structure:
 <autopic mode="comic" frame="portrait">
 <scene>tags shared by the whole page: location, time, lighting</scene>
 <page>one short English sentence describing the page layout: how many panels, their relative sizes and positions, the reading order and what each panel's camera shows</page>

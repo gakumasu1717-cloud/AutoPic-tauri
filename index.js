@@ -2290,7 +2290,8 @@ function getFinalPrompt() {
         }
     }
 
-    return finalPrompt + getOutfitPrompt() + buildComicPrompt();
+    // Comic rules are injected separately, next to the latest message (see the handler below).
+    return finalPrompt + getOutfitPrompt();
 }
 
 eventSource.on(
@@ -2313,6 +2314,15 @@ eventSource.on(
                 eventData.chat.unshift({ role: role, content: prompt });
             } else {
                 eventData.chat.splice(-depth, 0, { role: role, content: prompt });
+            }
+
+            // Comic mode overrides the single-illustration format above. Put it right before the
+            // latest message so it is not drowned out by the template's examples in a long chat.
+            const comicPrompt = buildComicPrompt();
+            if (comicPrompt) {
+                const at = Math.max(0, eventData.chat.length - 1);
+                eventData.chat.splice(at, 0, { role: 'system', content: comicPrompt.trim() });
+                console.info('[AutoPic] Comic mode rules injected');
             }
         } catch (error) {
             console.error(`[${extensionName}] Prompt injection error:`, error);
