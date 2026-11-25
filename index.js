@@ -1,5 +1,5 @@
 import { ensureTauriCompat, registerTopFetch, isTauriTavern, getLocalNovelKey, setLocalNovelKey } from './tauri-compat.mjs';
-import { COMIC_DEFAULTS, setComicOptionsProvider, getComicOptions, buildComicPrompt, isComicContent, orientComicSize } from './comic.mjs';
+import { COMIC_DEFAULTS, setComicOptionsProvider, getComicOptions, buildComicPrompt, isComicContent, orientComicSize, fitComicCharacters } from './comic.mjs';
 import { createAutopicId } from './id.mjs';
 import { parseCharacterPromptFile, serializeCharacterPrompts } from './character-prompt-file.mjs';
 import {
@@ -138,12 +138,15 @@ function shouldUseAutopicNaiProxy() {
 					}
 				}
                 const existingCharacterPrompts = Array.isArray(body.characterPrompts) ? body.characterPrompts : [];
-                const pendingCharacterPrompts = Array.isArray(pendingNaiPayload?.characterPrompts)
-                    ? pendingNaiPayload.characterPrompts
+                // Comic pages: per-panel captions when they fit NovelAI's 6-character limit, else one per character.
+                const fittedPayload = fitComicCharacters(pendingNaiPayload, 6);
+                const pendingCharacterPrompts = Array.isArray(fittedPayload?.characterPrompts)
+                    ? fittedPayload.characterPrompts
                     : [];
 
                 body.cfg_rescale = cfg;
-                body.character_positions_ai_choice = !!naiParams?.useCharacterPositionsAiChoice;
+                // Comic pages place each character inside its panel, so coordinates must stay on.
+                body.character_positions_ai_choice = pendingNaiPayload?.comic ? false : !!naiParams?.useCharacterPositionsAiChoice;
                 const seedValue = Number(naiParams?.seed);
                 if (naiParams?.seedEnabled && Number.isInteger(seedValue) && seedValue >= 0) {
                     body.seed = seedValue;

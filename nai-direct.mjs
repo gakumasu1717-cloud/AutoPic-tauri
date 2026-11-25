@@ -1,6 +1,6 @@
 import { createAutopicId } from './id.mjs';
 import { parseAutopic, assertNoAutopicTags } from './structured-prompt.mjs';
-import { orientComicSize } from './comic.mjs';
+import { orientComicSize, fitComicCharacters } from './comic.mjs';
 import { planMetadataImport, applyMetadataImport, RESOLUTION_PRESETS, resolutionPreset } from './nai-metadata-import.mjs';
 import { bindStylePresets } from './nai-presets.mjs';
 const MAX_IMAGE_BYTES = 40 * 1024 * 1024;
@@ -323,6 +323,8 @@ export async function generateDirect({ nai, prompt, payload, library = [], conte
         settings.prefix = prefix.prompt;
         if (!payload?.characterPrompts?.length) payload = { ...prefix, ...payload, characterPrompts: prefix.characterPrompts };
     }
+    // Comic pages: per-panel captions when they fit this model's character limit, else one per character.
+    payload = fitComicCharacters(payload, profile.maxCharacters);
     const seed = nai.seedEnabled ? Number(nai.seed) : undefined;
     if (nai.seedEnabled && (String(nai.seed).trim() === '' || !Number.isInteger(seed) || seed < 0 || seed > 4294967295)) throw new Error('Seed는 0~4294967295 정수여야 합니다.');
     const body = {
@@ -338,6 +340,8 @@ export async function generateDirect({ nai, prompt, payload, library = [], conte
     };
     // Comic pages pick their own orientation; keep the saved resolution, only rotate it.
     if (payload?.comic?.frame) [body.width, body.height] = orientComicSize(body.width, body.height, payload.comic.frame);
+    // Each panel appearance is placed inside its panel, so coordinates must stay on.
+    if (payload?.comic) body.character_positions_ai_choice = false;
     // Like legacy /sd: prepend ST Image Generation's common prompt prefix / negative prompt.
     if (settings.useStStyle !== false && stStyle) {
         const substitute = typeof stStyle.substitute === 'function' ? stStyle.substitute : (s => s);
