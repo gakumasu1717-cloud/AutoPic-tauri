@@ -1,5 +1,6 @@
 import { createAutopicId } from './id.mjs';
 import { parseAutopic, assertNoAutopicTags } from './structured-prompt.mjs';
+import { orientComicSize } from './comic.mjs';
 import { planMetadataImport, applyMetadataImport, RESOLUTION_PRESETS, resolutionPreset } from './nai-metadata-import.mjs';
 import { bindStylePresets } from './nai-presets.mjs';
 const MAX_IMAGE_BYTES = 40 * 1024 * 1024;
@@ -335,6 +336,8 @@ export async function generateDirect({ nai, prompt, payload, library = [], conte
         variety: profile.variety && settings.variety,
         scheduler: profile.schedulers.length === 1 ? profile.schedulers[0] : settings.scheduler,
     };
+    // Comic pages pick their own orientation; keep the saved resolution, only rotate it.
+    if (payload?.comic?.frame) [body.width, body.height] = orientComicSize(body.width, body.height, payload.comic.frame);
     // Like legacy /sd: prepend ST Image Generation's common prompt prefix / negative prompt.
     if (settings.useStStyle !== false && stStyle) {
         const substitute = typeof stStyle.substitute === 'function' ? stStyle.substitute : (s => s);

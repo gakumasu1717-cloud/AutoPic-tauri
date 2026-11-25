@@ -1,12 +1,15 @@
+import { compileComic, isComicContent } from './comic.mjs';
+
 // A single parser shared by all direct-generation entry points.
 export function parseAutopic(text, library = [], decode = value => value) {
     const source = decode(String(text || '')).trim();
-    const match = source.match(/<autopic\b[^>]*>([\s\S]*?)<\/autopic>/i);
+    const match = source.match(/<autopic\b([^>]*)>([\s\S]*?)<\/autopic>/i);
     if (!match) {
-        if (/<\/?(?:autopic|scene|apchar|uc)\b/i.test(source)) throw new Error('AutoPic 태그가 완성되지 않았습니다. scene/apchar 닫는 태그를 확인해 주세요.');
+        if (/<\/?(?:autopic|scene|apchar|uc|panel|say)\b/i.test(source)) throw new Error('AutoPic 태그가 완성되지 않았습니다. scene/apchar/panel 닫는 태그를 확인해 주세요.');
         return null;
     }
-    const blocks = tag => [...match[1].matchAll(new RegExp('<'+tag+'\\b([^>]*)>([\\s\\S]*?)<\\/'+tag+'>', 'gi'))];
+    if (isComicContent(match[2])) return compileComic(match[2], match[1], library, decode);
+    const blocks = tag => [...match[2].matchAll(new RegExp('<'+tag+'\\b([^>]*)>([\\s\\S]*?)<\\/'+tag+'>', 'gi'))];
     const prompt = blocks('scene').map(m=>decode(m[2]).trim()).filter(Boolean).join(', ');
     const negative_prompt = blocks('uc').map(m=>decode(m[2]).trim()).filter(Boolean).join(', ');
     const characterPrompts = blocks('apchar').map(m => {
@@ -17,5 +20,5 @@ export function parseAutopic(text, library = [], decode = value => value) {
     return { prompt, negative_prompt, characterPrompts };
 }
 export function assertNoAutopicTags(text) {
-    if (/<\/?(?:autopic|scene|apchar|uc)\b|&lt;\/?(?:autopic|scene|apchar|uc)\b/i.test(String(text || ''))) throw new Error('구조화 프롬프트 분리에 실패했습니다. 원문 태그를 메인으로 전송하지 않습니다.');
+    if (/<\/?(?:autopic|scene|apchar|uc|panel|say)\b|&lt;\/?(?:autopic|scene|apchar|uc|panel|say)\b/i.test(String(text || ''))) throw new Error('구조화 프롬프트 분리에 실패했습니다. 원문 태그를 메인으로 전송하지 않습니다.');
 }

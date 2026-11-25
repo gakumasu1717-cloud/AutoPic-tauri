@@ -1,4 +1,5 @@
 import { ensureTauriCompat, registerTopFetch, isTauriTavern, getLocalNovelKey, setLocalNovelKey } from './tauri-compat.mjs';
+import { COMIC_DEFAULTS, setComicOptionsProvider, getComicOptions, buildComicPrompt, isComicContent, orientComicSize } from './comic.mjs';
 import { createAutopicId } from './id.mjs';
 import { parseCharacterPromptFile, serializeCharacterPrompts } from './character-prompt-file.mjs';
 import {
@@ -168,6 +169,9 @@ function shouldUseAutopicNaiProxy() {
                     body.reference_fidelity = typeof naiParams.refFidelity === 'number' ? naiParams.refFidelity : 1.0;
                     body.reference_mode     = naiParams.refMode || 'character&style';
                     console.log('[AutoPic Interceptor] 레퍼런스 주입 (mode:', body.reference_mode, ', strength:', body.reference_strength, ', fidelity:', body.reference_fidelity, ')');
+                }
+                if (pendingNaiPayload?.comic?.frame) {
+                    [body.width, body.height] = orientComicSize(body.width, body.height, pendingNaiPayload.comic.frame);
                 }
                 if (pendingNaiPayload?.negative_prompt) {
                     body.negative_prompt = [body.negative_prompt, pendingNaiPayload.negative_prompt]
@@ -721,7 +725,11 @@ function getCurrentAutopicCharacterLibraryForNai() {
 }
 
 function parseStructuredPicBlock(fullTag, content) {
-    const scene = getTagContents(content, 'scene').map(item => item.content).filter(Boolean).join(', ');
+    if (isComicContent(content)) {
+        const comic = parseAutopic(fullTag, getCurrentAutopicCharacterPromptsForNai(), decodeHtmlAttribute);
+        return { fullTag, prompt: comic.prompt, editText: fullTag, naiPayload: comic, isStructured: true };
+    }
+    const scene =getTagContents(content, 'scene').map(item => item.content).filter(Boolean).join(', ');
     const uc = getTagContents(content, 'uc').map(item => item.content).filter(Boolean).join(', ');
     const charBlocks = getTagContents(content, 'apchar');
     const { byName } = getCurrentAutopicCharacterLibraryForNai();
@@ -2279,7 +2287,7 @@ function getFinalPrompt() {
         }
     }
 
-    return finalPrompt + getOutfitPrompt();
+    return finalPrompt + getOutfitPrompt() + buildComicPrompt();
 }
 
 eventSource.on(
@@ -2598,6 +2606,7 @@ $(function () {
         await createSettings(settingsHtml);
         initializeSlotSettings();
         initializeTauriCompatSettings();
+        initializeComicSettings();
         scheduleBuiltInPromptPresetUpdateOffer();
 
         $('#extensions-settings-button').on('click', () => setTimeout(updateUI, 200));
@@ -3027,6 +3036,30 @@ function syncSlotCompatibility() {
     $('#autopic_translation_detected').text(extension_settings['llm-translator-custom'] ? 'llm-translator-custom 감지됨 · 태그 치환 모드에서 사용할 수 있습니다.' : '번역 확장을 사용하는 경우 선택하세요.');
 }
 
+function getComicSettings() {
+    const s = extension_settings[extensionName];
+    s.comic = { ...COMIC_DEFAULTS, ...(s.comic || {}) };
+    return s.comic;
+}
+setComicOptionsProvider(() => extension_settings[extensionName]?.comic || COMIC_DEFAULTS);
+
+function initializeComicSettings() {
+    const comic = getComicSettings();
+    const sync = () => {
+        const options = getComicOptions();
+        $('#autopic_comic_enabled').prop('checked', options.enabled);
+        $('#autopic_comic_frame').val(options.frame);
+        $('#autopic_comic_dialogue').val(options.dialogue);
+        $('#autopic_comic_max_panels').val(options.maxPanels);
+        $('#autopic_comic_options').css({ opacity: options.enabled ? '1' : '0.4', 'pointer-events': options.enabled ? 'auto' : 'none' });
+    };
+    $('#autopic_comic_enabled').on('change', function () { comic.enabled = this.checked; sync(); saveSettingsDebounced(); });
+    $('#autopic_comic_frame').on('change', function () { comic.frame = this.value; saveSettingsDebounced(); });
+    $('#autopic_comic_dialogue').on('change', function () { comic.dialogue = this.value; saveSettingsDebounced(); });
+    $('#autopic_comic_max_panels').on('change', function () { comic.maxPanels = Number(this.value); sync(); saveSettingsDebounced(); });
+    sync();
+}
+
 function initializeTauriCompatSettings() {
     if (!isTauriTavern()) return;
     ensureTauriCompat();
@@ -3298,7 +3331,7 @@ function buildManualAutopicPrompt(mesId, options, paragraphs, library) {
         'Create exactly ' + options.count + ' DISTINCT illustrations as complete <autopic> blocks. Show different moments, actions or compositions, never alternate samples of the same scene.\n' +
         (options.request ? 'Scene request (prioritize this):\n<scene_request>' + options.request + '</scene_request>\n' : 'No scene request: choose suitable scenes from TARGET as usual.\n') +
         '<autopic_registered_characters>\nOnly these exact ref names are registered. Each apchar_outfit contains that character\'s saved clothing reference. Do not invent refs. AutoPic adds permanent appearance.\n' + (refs || '(none)') + '\n</autopic_registered_characters>\n' +
-        getOutfitPrompt() + '\n' +
+        getOutfitPrompt() + buildComicPrompt() + '\n' +
         '<chat_context>\n' + getManualContextText(mesId, options.previous) + '\n</chat_context>\n' +
         '<target_message>\n' + paragraphs.map(p => '[' + p.id + '] ' + p.text).join('\n\n') + '\n</target_message>\n' +
         '<autopic_placement>\nFollow these placement instructions for this request.\n' + placementPrompt + '\n' + placementFormat + '\n</autopic_placement>\n' +

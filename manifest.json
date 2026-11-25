@@ -5,7 +5,7 @@
     "js": "index.js",
     "css": "nai-studio.css",
     "author": "SillyGgu",
-    "version": "2.1.1-tauri.2",
+    "version": "2.1.1-tauri.3",
     "homePage": "https://github.com/gakumasu1717-cloud/AutoPic-tauri",
     "auto_update": true
 }

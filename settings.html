@@ -40,6 +40,39 @@
                 </div>
             </div>
 
+            <div class="image-gen-card">
+                <h3 class="gen-section-title">만화 모드</h3>
+                <div class="flex-container flexnowrap">
+                    <label class="gen-checkbox-label" for="autopic_comic_enabled">
+                        <input type="checkbox" id="autopic_comic_enabled">
+                        <span>삽화 대신 여러 컷짜리 만화 한 장으로 생성</span>
+                    </label>
+                </div>
+                <div id="autopic_comic_options" style="margin-top: 10px;">
+                    <div class="flex-container flexnowrap margin-bottom-15" style="align-items: center; gap: 20px;">
+                        <label for="autopic_comic_frame" style="flex-shrink: 0; min-width: 120px;">판형</label>
+                        <select id="autopic_comic_frame" class="gen-custom-input flex1">
+                            <option value="auto">장면에 맞게 (AI 선택)</option>
+                            <option value="portrait">세로</option>
+                            <option value="landscape">가로</option>
+                        </select>
+                    </div>
+                    <div class="flex-container flexnowrap margin-bottom-15" style="align-items: center; gap: 20px;">
+                        <label for="autopic_comic_dialogue" style="flex-shrink: 0; min-width: 120px;">말풍선 대사</label>
+                        <select id="autopic_comic_dialogue" class="gen-custom-input flex1">
+                            <option value="english">영어로 (글자가 가장 잘 나옴)</option>
+                            <option value="story">본문 언어 그대로</option>
+                            <option value="none">대사 없음</option>
+                        </select>
+                    </div>
+                    <div class="flex-container flexnowrap" style="align-items: center; gap: 20px;">
+                        <label for="autopic_comic_max_panels" style="flex-shrink: 0; min-width: 120px;">최대 컷 수</label>
+                        <input id="autopic_comic_max_panels" class="gen-custom-input" type="number" min="2" max="6" style="width: 80px;">
+                    </div>
+                    <small style="display:block; margin-top:8px; opacity:0.7;">NovelAI V4.5 이상 모델에서 동작합니다. 켜면 AI에게 컷·대사 형식을 함께 알려줍니다.</small>
+                </div>
+            </div>
+
             <div class="image-gen-card autopic-translation-card">
                 <label for="autopic_translation_compatibility" class="gen-section-title">번역기 호환</label>
                 <select id="autopic_translation_compatibility" class="gen-custom-input">
