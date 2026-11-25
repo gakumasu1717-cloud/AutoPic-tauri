@@ -190,6 +190,7 @@
                     <textarea id="nai_main_prompt" class="gen-custom-input" data-direct="prefix" rows="3" placeholder="그림체, 조명 등 모든 장면에 적용할 프롬프트" aria-describedby="nai_main_prompt_status"></textarea>
                     <small id="nai_main_prompt_status" data-prompt-status="prefix" role="status">저장된 내용</small>
                 </div>
+                <label class="ap-switch-row ap-direct-only"><span><strong>ST 그림체 프롬프트 사용</strong><small>ST 이미지 생성 설정의 공통 프롬프트·네거티브를 함께 씁니다 (기존 오토픽처럼)</small></span><input class="ap-toggle" data-direct="useStStyle" type="checkbox" role="switch"></label>
                 <div class="ap-field">
                     <div class="ap-prompt-heading"><label for="nai_uc_prompt">추가 UC</label><button type="button" class="ap-icon-button" data-save-prompt="negative_prompt" title="UC 프롬프트 저장" aria-label="UC 프롬프트 저장" disabled><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button></div>
                     <textarea id="nai_uc_prompt" class="gen-custom-input" data-direct="negative_prompt" rows="2" placeholder="제외할 요소" aria-describedby="nai_uc_prompt_status"></textarea>

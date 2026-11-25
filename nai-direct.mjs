@@ -128,7 +128,7 @@ export function isDirect(nai) { return !!nai.generationMode && nai.generationMod
 export function directSettings(nai, profile) {
     nai.directSettings ??= {};
     nai.directSettings[nai.generationMode] ??= {};
-    return { ...profile.defaults, prefix: '', negative_prompt: '', dataset: 'anime', transparent: false, variety: false, normalizeVibes: true, useImportedCharacters: false, ...nai.directSettings[nai.generationMode] };
+    return { ...profile.defaults, prefix: '', negative_prompt: '', dataset: 'anime', transparent: false, variety: false, normalizeVibes: true, useStStyle: true, useImportedCharacters: false, ...nai.directSettings[nai.generationMode] };
 }
 
 export function bindDirectSettings(getNai, save, refresh) {
@@ -306,7 +306,7 @@ export function joinDirectSections(prefix, scene) {
 }
 
 /** Generates and saves a PNG using ST's image storage, without invoking /sd. */
-export async function generateDirect({ nai, prompt, payload, library = [], context, getHeaders, saveImage, letterbox }) {
+export async function generateDirect({ nai, prompt, payload, library = [], context, getHeaders, saveImage, letterbox, stStyle = null }) {
     // Snapshot before awaiting: changing settings mid-request must not change its model/seed.
     nai = { ...nai, vibeImages: nai.vibeImages?.map(v => ({ ...v })),
         directSettings: { [nai.generationMode]: structuredClone(nai.directSettings?.[nai.generationMode] || {}) } };
@@ -335,9 +335,15 @@ export async function generateDirect({ nai, prompt, payload, library = [], conte
         variety: profile.variety && settings.variety,
         scheduler: profile.schedulers.length === 1 ? profile.schedulers[0] : settings.scheduler,
     };
+    // Like legacy /sd: prepend ST Image Generation's common prompt prefix / negative prompt.
+    if (settings.useStStyle !== false && stStyle) {
+        const substitute = typeof stStyle.substitute === 'function' ? stStyle.substitute : (s => s);
+        body.prompt = substitute(combinePrefixes(String(stStyle.prefix || ''), body.prompt, '{prompt}'));
+        body.negative_prompt = substitute(combinePrefixes(body.negative_prompt, String(stStyle.negative || '')));
+    }
     assertNoAutopicTags(body.prompt); assertNoAutopicTags(body.negative_prompt);
     for (const character of body.characterPrompts) { assertNoAutopicTags(character.prompt); assertNoAutopicTags(character.uc); }
-    delete body.importedCharacters; delete body.useImportedCharacters; delete body.prefix;
+    delete body.importedCharacters; delete body.useImportedCharacters; delete body.prefix; delete body.useStStyle;
     if (profile.vibe && nai.vibeEnabled) body.vibes = (nai.vibeImages ?? []).filter(v => v.base64).map(v => ({ image: v.base64, information: v.infoExtracted ?? 0.7, strength: v.strength ?? 0.6 }));
     if (profile.reference && nai.refEnabled && nai.refImage) {
         const image = await prepareReference(nai.refImage, letterbox);
@@ -354,6 +360,16 @@ export async function generateDirect({ nai, prompt, payload, library = [], conte
     if (!base64.startsWith('iVBORw0KGgo')) throw new Error('AutoPic 서버에서 올바른 PNG를 받지 못했습니다.');
     const characterName = context.characters?.[context.characterId]?.name || 'AutoPic';
     return saveImage(base64, characterName, `autopic_${Date.now()}_${createAutopicId()}`, 'png');
+}
+
+/** Same as combinePrefixes() in ST's stable-diffusion extension. */
+function combinePrefixes(str1, str2, macro = '') {
+    const process = (s) => s.trim().replace(/^,|,$/g, '').trim();
+    if (!str2) return str1;
+    str1 = process(str1);
+    str2 = process(str2);
+    const result = macro && str1.includes(macro) ? str1.replace(macro, str2) : `${str1}, ${str2},`;
+    return process(result);
 }
 
 export function syncCharacterPositionVisibility(nai) {

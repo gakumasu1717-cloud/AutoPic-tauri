@@ -23,6 +23,7 @@ import {
     updateMessageBlock,
     characters,
     getRequestHeaders,
+    substituteParams,
 } from '../../../../script.js';
 import { appendMediaToMessage } from '../../../../script.js';
 import { download, regexFromString, saveBase64AsFile } from '../../../utils.js';
@@ -3894,6 +3895,7 @@ async function sdCallWithRescale(args, prompt, naiPayload = null) {
             nai: getNaiParams(), prompt, payload, library: getCurrentAutopicCharacterPromptsForNai(), context: getContext(),
             getHeaders: getRequestHeaders, saveImage: saveBase64AsFile,
             letterbox: letterboxToReferenceCanvas,
+            stStyle: { prefix: extension_settings.sd?.prompt_prefix, negative: extension_settings.sd?.negative_prompt, substitute: substituteParams },
         });
     }
     const previousPendingNaiPayload = pendingNaiPayload;

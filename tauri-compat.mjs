@@ -236,7 +236,7 @@ async function upscaleOrOriginal(body, key, originalBase64, signal) {
             signal,
         });
         if (!upscale.ok) throw new Error(await upscale.text());
-        const upscaled = await extractFileFromZip(new Uint8Array(await upscale.arrayBuffer()), '.png');
+        const upscaled = await extractPng(await upscale.arrayBuffer());
         if (!upscaled) throw new Error('Upscaled PNG was not found in the NAI zip response.');
         return bytesToBase64(upscaled);
     } catch (error) {
@@ -303,7 +303,7 @@ async function handleStGenerateImage(body, signal) {
             const text = await result.text().catch(() => '');
             return textResponse(text || `NovelAI 오류 (${result.status})`, result.status);
         }
-        const png = await extractFileFromZip(new Uint8Array(await result.arrayBuffer()), '.png');
+        const png = await extractPng(await result.arrayBuffer());
         if (!png) return textResponse('NovelAI generated an image, but the PNG file was not found.', 500);
         return textResponse(await upscaleOrOriginal(body, key, await bytesToBase64(png), signal), 200);
     } catch (error) {
@@ -672,7 +672,7 @@ async function handlePluginGenerateImage(body, signal) {
             return textResponse(errorText || generateResult.statusText, status);
         }
 
-        const png = await extractFileFromZip(new Uint8Array(await generateResult.arrayBuffer()), '.png');
+        const png = await extractPng(await generateResult.arrayBuffer());
         if (!png) return textResponse('PNG was not found in the NAI zip response.', 500);
         return textResponse(await upscaleOrOriginal(body, key, await bytesToBase64(png), signal), 200, headers);
     } catch (error) {
@@ -729,7 +729,7 @@ async function handleGenerateDirect(body, outerSignal) {
             try { message = JSON.parse(raw).message; } catch { /* non-JSON upstream error */ }
             return Response.json({ message: typeof message === 'string' ? message.slice(0, 500) : `NovelAI 이미지 생성 실패 (HTTP ${result.status})` }, { status: result.status });
         }
-        const png = await extractFileFromZip(new Uint8Array(await result.arrayBuffer()), '.png');
+        const png = await extractPng(await result.arrayBuffer());
         if (!png) return Response.json({ message: 'NovelAI 응답에 PNG 이미지가 없습니다.' }, { status: 502 });
         return textResponse(await bytesToBase64(png), 200, { 'X-AutoPic-Seed': String(p.seed) });
     } catch (error) {
@@ -748,6 +748,45 @@ async function handleGenerateDirect(body, outerSignal) {
 }
 
 // ── zip / base64 ─────────────────────────────────────────────────────────────
+
+/**
+ * Extracts the PNG from a NovelAI zip response and checks it is a complete PNG.
+ * A truncated/corrupt PNG would otherwise be saved and show up as a broken image.
+ * @param {ArrayBuffer} buffer
+ * @returns {Promise<Uint8Array|null>}
+ */
+async function extractPng(buffer) {
+    const zip = new Uint8Array(buffer);
+    // NovelAI may answer with a bare PNG instead of a zip.
+    const raw = isPngSignature(zip) ? zip : await extractFileFromZip(zip, '.png');
+    if (!raw) return null;
+    const png = trimToPngEnd(raw);
+    if (!png) {
+        console.error('[AutoPic] NovelAI PNG is incomplete or corrupt', { zipBytes: zip.length, pngBytes: raw.length });
+        throw new Error(`NovelAI에서 받은 PNG가 손상되었습니다 (zip ${zip.length} bytes, png ${raw.length} bytes).`);
+    }
+    return png;
+}
+
+function isPngSignature(bytes) {
+    return bytes.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((b, i) => bytes[i] === b);
+}
+
+/** Walks PNG chunks; returns the bytes up to and including IEND, or null if the structure is broken. */
+export function trimToPngEnd(bytes) {
+    if (!isPngSignature(bytes)) return null;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let offset = 8;
+    while (offset + 12 <= bytes.length) {
+        const length = view.getUint32(offset);
+        const type = String.fromCharCode(bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7]);
+        const end = offset + 12 + length;
+        if (end > bytes.length) return null;
+        if (type === 'IEND') return bytes.subarray(0, end);
+        offset = end;
+    }
+    return null;
+}
 
 /**
  * Minimal ZIP reader: returns the bytes of the first entry whose name ends
@@ -778,17 +817,34 @@ export async function extractFileFromZip(zip, suffix) {
         const commentLen = view.getUint16(ptr + 32, true);
         const localOffset = view.getUint32(ptr + 42, true);
         const name = decoder.decode(zip.subarray(ptr + 46, ptr + 46 + nameLen));
+        let size = compressedSize;
+        if (size === 0xffffffff) size = readZip64CompressedSize(view, ptr + 46 + nameLen, extraLen, view.getUint32(ptr + 24, true) === 0xffffffff);
         ptr += 46 + nameLen + extraLen + commentLen;
 
         if (!name.toLowerCase().endsWith(suffix)) continue;
 
         if (view.getUint32(localOffset, true) !== 0x04034b50) return null;
         const start = localOffset + 30 + view.getUint16(localOffset + 26, true) + view.getUint16(localOffset + 28, true);
-        const data = zip.subarray(start, start + compressedSize);
+        const data = zip.subarray(start, size === null ? zip.length : start + size);
 
         if (method === 0) return data;
         if (method === 8) return inflateRaw(data);
         throw new Error(`Unsupported ZIP compression method: ${method}`);
+    }
+    return null;
+}
+
+/** Reads the compressed size from a ZIP64 extended-information extra field. */
+function readZip64CompressedSize(view, extraStart, extraLen, hasUncompressed) {
+    let p = extraStart;
+    while (p + 4 <= extraStart + extraLen) {
+        const id = view.getUint16(p, true);
+        const len = view.getUint16(p + 2, true);
+        if (id === 0x0001) {
+            const at = p + 4 + (hasUncompressed ? 8 : 0);
+            return Number(view.getBigUint64(at, true));
+        }
+        p += 4 + len;
     }
     return null;
 }
